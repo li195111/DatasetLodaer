@@ -1,0 +1,14 @@
+{
+    "LANDMARK_300W_68_DATASET_PATH":"E:\\Dataset\\Image\\300W_Facial_Landmark_68",
+    "LANDMARK_AFW_68_DATASET_PATH":"E:\\Dataset\\Image\\AFW_Facial_Landmark_68",
+    "LANDMARK_HELEN_68_DATASET_PATH":"E:\\Dataset\\Image\\Helen_Facial_Landmark_68",
+    "LANDMARK_LFPW_68_DATASET_PATH":"E:\\Dataset\\Image\\LFPW_Facial_Landmark_68",
+    "LANDMARK_68_DATASET_PATHS":[
+        "E:\\Dataset\\Image\\300W_Facial_Landmark_68",
+        "E:\\Dataset\\Image\\AFW_Facial_Landmark_68",
+        "E:\\Dataset\\Image\\Helen_Facial_Landmark_68",
+        "E:\\Dataset\\Image\\LFPW_Facial_Landmark_68"
+    ],
+    "CELEBA_DATASET_PATH":"E:\\Dataset\\Image\\CelebA",
+    "WIDER_DATASET_PATH":"E:\\Dataset\\Image\\WIDER"
+}
