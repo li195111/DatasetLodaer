@@ -82,7 +82,7 @@ class DatasetLoader_68(DatasetLoader):
             if "AFW" in path:
                 dataloader = DatasetLoader_AFW_68(path)
             if "Helen" in path:
-                dataloader = DatasetLoader_Hellen_68(path)
+                dataloader = DatasetLoader_Helen_68(path)
             if "LFPW" in path:
                 dataloader = DatasetLoader_LFPW_68(path)
             for NAME in dataloader.NAME_DICT:
@@ -113,9 +113,9 @@ class DatasetLoader_LFPW_68(DatasetLoader):
         self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
         self.NUM_IMAGES = len(self.IMAGE_NAMES)
 
-class DatasetLoader_Hellen_68(DatasetLoader):
+class DatasetLoader_Helen_68(DatasetLoader):
     def __init__(self, dataset_path):
-        super(DatasetLoader_Hellen_68, self).__init__(dataset_path)
+        super(DatasetLoader_Helen_68, self).__init__(dataset_path)
         self.TRAIN_DATASET_PATH = os.path.join(self.DATASET_PATH, "Training")
         self.TEST_DATASET_PATH = os.path.join(self.DATASET_PATH,"Testing")
         self.TRAIN_FILE_NAMES = os.listdir(self.TRAIN_DATASET_PATH)
