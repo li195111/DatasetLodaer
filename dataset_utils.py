@@ -356,7 +356,7 @@ class DatasetLoader_WIDER(DatasetLoader):
                 BBOX[:,3] *= dsize[1] / H
                 img = cv2.resize(img, dsize, interpolation= cv2.INTER_LANCZOS4)
                 batch_images.append(img)
-                batch_bboxes.append(bboxes)
+                batch_bboxes.append(BBOX)
             yield [np.array(batch_images), np.array(batch_bboxes)]
         
     def read_file(self, mode= 'TRAIN'):
@@ -449,8 +449,8 @@ if __name__ == "__main__":
     
     cfg = Config.from_json(CONFIG_PATH)
 
-    dataloader = DatasetLoader_CelebA(cfg.CELEBA_DATASET_PATH)
+    dataloader = DatasetLoader_WIDER(cfg.WIDER_DATASET_PATH, "TRAIN")
     loader = dataloader.create_generator(batch_size= 32, dsize= (640,360), shuffle= False)
     
-    images, bboxes, attrs, pts, align_pts = loader.__next__()
-    print (images.shape, bboxes.shape, attrs.shape, pts.shape, align_pts.shape)
+    images, bboxes = loader.__next__()
+    print (images.shape, bboxes.shape)
