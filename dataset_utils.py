@@ -87,7 +87,7 @@ class DatasetLoader_68(DatasetLoader):
                 dataloader = DatasetLoader_LFPW_68(path)
             for NAME in dataloader.NAME_DICT:
                 self.NAME_DICT[NAME] = dataloader.NAME_DICT[NAME]
-        self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT.keys()))
         self.NUM_IMAGES = len(self.IMAGE_NAMES)
 
 class DatasetLoader_LFPW_68(DatasetLoader):
@@ -110,7 +110,7 @@ class DatasetLoader_LFPW_68(DatasetLoader):
             if f.endswith('pts'):
                 TYPE = "points" 
             self.NAME_DICT[NAME][TYPE] = os.path.join(PATH, f)
-        self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT.keys()))
         self.NUM_IMAGES = len(self.IMAGE_NAMES)
 
 class DatasetLoader_Helen_68(DatasetLoader):
@@ -133,7 +133,7 @@ class DatasetLoader_Helen_68(DatasetLoader):
             if f.endswith('pts'):
                 TYPE = "points" 
             self.NAME_DICT[NAME][TYPE] = os.path.join(PATH, f)
-        self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT.keys()))
         self.NUM_IMAGES = len(self.IMAGE_NAMES)
 
 class DatasetLoader_AFW_68(DatasetLoader):
@@ -152,7 +152,7 @@ class DatasetLoader_AFW_68(DatasetLoader):
             if f.endswith('pts'):
                 TYPE = "points" 
             self.NAME_DICT[NAME][TYPE] = os.path.join(PATH, f)
-        self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT.keys()))
         self.NUM_IMAGES = len(self.IMAGE_NAMES)
         
 class DatasetLoader_300W_68(DatasetLoader):
@@ -181,7 +181,7 @@ class DatasetLoader_300W_68(DatasetLoader):
             if f.endswith('pts'):
                 TYPE = "points" 
             self.NAME_DICT[NAME][TYPE] = os.path.join(PATH, f)
-        self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT.keys()))
         self.NUM_IMAGES = len(self.IMAGE_NAMES)
 
 class DatasetLoader_CelebA(DatasetLoader):
@@ -217,7 +217,7 @@ class DatasetLoader_CelebA(DatasetLoader):
         self.ANNO_LIST_LANDMARK_FILE_PATH = os.path.join(self.ANNO_PATH,"list_landmarks_celeba.txt")
         self.EVAL_PATH = os.path.join(self.DATASET_PATH,"Eval")
         self.IMGS_PATH = os.path.join(self.DATASET_PATH,"Img")
-        self.IMG_ALIGN_PATH = os.path.join(self.IMGS_PATH,"img_align_celeba_png")
+        self.IMG_ALIGN_CELEBA_PATH = os.path.join(self.IMGS_PATH,"img_align_celeba")
         self.IMG_CELEBA_PATH = os.path.join(self.IMGS_PATH,"img_celeba")
         self.ALL_FILE_NAMES = os.listdir(self.IMG_CELEBA_PATH)
         self.ANNO_LIST = {'BBOX':self.ANNO_LIST_BBOX_FILE_PATH,
@@ -227,8 +227,43 @@ class DatasetLoader_CelebA(DatasetLoader):
                           'LANDMARKS_ALIGN':self.ANNO_LIST_LANDMARK_ALIGN_FILE_PATH}
         for ANNO in self.ANNO_LIST:
             self.read_file(self.ANNO_LIST[ANNO], ANNO)
-        self.IMAGE_NAMES = np.array(self.NAME_DICT.keys())
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT.keys()))
         self.NUM_IMAGES = len(self.ALL_FILE_NAMES)
+            
+    def create_generator(self, batch_size, dsize= (640,360), shuffle= True):
+        num_iters = self.NUM_IMAGES // batch_size
+        if shuffle:
+            np.random.shuffle(self.IMAGE_NAMES)
+        for i in range(num_iters):
+            batch_name = self.IMAGE_NAMES[i*batch_size:(i+1)*batch_size]
+            batch_images = []
+            batch_bboxes = []
+            batch_attrs = []
+            batch_pts = []
+            batch_align_pts = []
+            for name in batch_name:
+                IMG = self.read_image_file(self.NAME_DICT[name]["image"])
+                H, W, C = IMG.shape if len(IMG.shape) == 3 else list(IMG.shape) + [1]
+                ID = self.NAME_DICT[name]["ID"]
+                BBOX = self.NAME_DICT[name]["BBOX"]
+                BBOX[0] *= dsize[0] / W
+                BBOX[1] *= dsize[1] / H
+                BBOX[2] *= dsize[0] / W
+                BBOX[3] *= dsize[1] / H
+                ATTRS = self.NAME_DICT[name]["ATTRS"]
+                PTS = self.NAME_DICT[name]["LANDMARKS"]
+                PTS[:,0] *= dsize[0] / W
+                PTS[:,1] *= dsize[1] / H
+                ALIGN_PTS = self.NAME_DICT[name]["LANDMARKS_ALIGN"]
+                ALIGN_PTS[:,0] *= dsize[0] / W
+                ALIGN_PTS[:,1] *= dsize[1] / H
+                IMG = cv2.resize(IMG, dsize, interpolation= cv2.INTER_LANCZOS4)
+                batch_images.append(IMG)
+                batch_bboxes.append(BBOX)
+                batch_attrs.append(ATTRS)
+                batch_pts.append(PTS)
+                batch_align_pts.append(ALIGN_PTS)
+            yield [np.array(batch_images), np.array(batch_bboxes), np.array(batch_attrs), np.array(batch_pts), np.array(batch_align_pts)]
         
     def read_file(self, filepath, annotation):
         with open(filepath, 'r', encoding= 'utf-8') as f:
@@ -239,9 +274,18 @@ class DatasetLoader_CelebA(DatasetLoader):
             datas = f.read().split('\n')[start:-1]
             for data in datas:
                 name = data.split()[0]
+                try:
+                    self.NAME_DICT[name]
+                except KeyError:
+                    self.NAME_DICT[name] = {}
                 details = data.split()[1:]
-                self.NAME_DICT[name] = {annotation:details}
-
+                details = np.array([float(v) for v in details])
+                if annotation == "LANDMARKS" or annotation == "LANDMARKS_ALIGN":
+                    details = details.reshape([-1,2])
+                self.NAME_DICT[name]["image"] = os.path.join(self.IMG_CELEBA_PATH,name)
+                self.NAME_DICT[name]["align_image"] = os.path.join(self.IMG_ALIGN_CELEBA_PATH,name)
+                self.NAME_DICT[name][annotation] = details
+                
 class DatasetLoader_WIDER(DatasetLoader):
     '''
     Attached the mappings between attribute names and label values.
@@ -270,27 +314,78 @@ class DatasetLoader_WIDER(DatasetLoader):
     Number of bounding box
     x1, y1, w, h, blur, expression, illumination, invalid, occlusion, pose
     '''
-    def __init__(self, dataset_path):
+    def __init__(self, dataset_path, mode):
         super(DatasetLoader_WIDER, self).__init__(dataset_path)
-        self.TRAIN_IMAGE_PATH = os.path.join(self.DATASET_PATH,"WIDER_train","images")
+        self.MODE = mode
+        self.TRAIN_IMAGE_DIR_PATH = os.path.join(self.DATASET_PATH,"WIDER_train","images")
         self.TEST_IMAGE_PATH = os.path.join(self.DATASET_PATH,"WIDER_test","images")
         self.VALID_IMAGE_PATH = os.path.join(self.DATASET_PATH,"WIDER_val","images")
         self.WIDER_FACE_SPLIT_PATH = os.path.join(self.DATASET_PATH,"wider_face_split")
         self.WIDER_FACE_TRAIN_BBOX_GT_FILE_PATH = os.path.join(self.WIDER_FACE_SPLIT_PATH,"wider_face_train_bbx_gt.txt")
         self.WIDER_FACE_TEST_FILE_LIST_FILE_PATH = os.path.join(self.WIDER_FACE_SPLIT_PATH,"wider_face_test_filelist.txt")
         self.WIDER_FACE_VALID_BBOX_GT_FILE_PATH = os.path.join(self.WIDER_FACE_SPLIT_PATH,"wider_face_val_bbx_gt.txt")
-        with open(self.WIDER_FACE_TRAIN_BBOX_GT_FILE_PATH, 'r', encoding= 'utf-8') as f:
-            datas = f.read().split('\n')
-            i = 0
-            while i < len(datas)-1:
-                filename_id = i
-                num_bboxes_id = i + 1
-                last_bbox_id = num_bboxes_id + int(datas[num_bboxes_id]) if int(datas[num_bboxes_id]) != 0 else num_bboxes_id + 1
-                i = last_bbox_id + 1
-            print (f"File Name:\t{datas[filename_id]}")
-            print (f"Num bbox:\t{datas[num_bboxes_id]}")
-            print (f"Last bbox:\t{datas[last_bbox_id]}")
-
+        self.WIDER_FACE_IMAGE_LIST = {'TRAIN':self.TRAIN_IMAGE_DIR_PATH,
+                                      'TEST':self.TEST_IMAGE_PATH,
+                                      'VALID':self.VALID_IMAGE_PATH}
+        self.WIDER_FACE_GT_LIST = {'TRAIN':self.WIDER_FACE_TRAIN_BBOX_GT_FILE_PATH,
+                                   'TEST':self.WIDER_FACE_TEST_FILE_LIST_FILE_PATH,
+                                   'VALID':self.WIDER_FACE_VALID_BBOX_GT_FILE_PATH}
+        
+        self.read_file(self.MODE)
+        
+        self.IMAGE_NAMES = np.array(list(self.NAME_DICT[self.MODE].keys()))
+        self.NUM_IMAGES = len(self.IMAGE_NAMES)
+        
+    def create_generator(self, batch_size, dsize= (640,360), shuffle= True, attrs= False):
+        num_iters = self.NUM_IMAGES // batch_size
+        if shuffle:
+            np.random.shuffle(self.IMAGE_NAMES)
+        for i in range(num_iters):
+            batch_name = self.IMAGE_NAMES[i*batch_size:(i+1)*batch_size]
+            batch_images = []
+            batch_bboxes = []
+            for name in batch_name:
+                img = self.read_image_file(self.NAME_DICT[self.MODE][name]["image"])
+                H, W, C = img.shape if len(img.shape) == 3 else list(img.shape) + [1]
+                BBOX = self.NAME_DICT[self.MODE][name]["BBOX"]
+                if not attrs:
+                    BBOX = BBOX[:,:4]
+                BBOX[:,0] *= dsize[0] / W
+                BBOX[:,1] *= dsize[1] / H
+                BBOX[:,2] *= dsize[0] / W
+                BBOX[:,3] *= dsize[1] / H
+                img = cv2.resize(img, dsize, interpolation= cv2.INTER_LANCZOS4)
+                batch_images.append(img)
+                batch_bboxes.append(bboxes)
+            yield [np.array(batch_images), np.array(batch_bboxes)]
+        
+    def read_file(self, mode= 'TRAIN'):
+        self.NAME_DICT[mode] = {}
+        if mode == 'TEST':
+            with open(self.WIDER_FACE_GT_LIST[mode],'r',encoding='utf-8') as f:
+                datas = f.read().split('\n')[:-1]
+                for name in datas:
+                    dirname, filename = name.split('/')
+                    image_dirname = self.WIDER_FACE_IMAGE_LIST[mode]
+                    image_path = os.path.join(image_dirname,dirname,filename)
+                    self.NAME_DICT[mode][filename] = {"image":image_path}
+        else:
+            with open(self.WIDER_FACE_GT_LIST[mode], 'r', encoding= 'utf-8') as f:
+                datas = f.read().split('\n')[:-1]
+                i = 0
+                while i < len(datas)-1:
+                    filename_id = i
+                    num_bboxes_id = i + 1
+                    last_bbox_id = num_bboxes_id + int(datas[num_bboxes_id]) if int(datas[num_bboxes_id]) != 0 else num_bboxes_id + 1
+                    bboxes = []
+                    for j in range(int(datas[num_bboxes_id])):
+                        bbox_id = num_bboxes_id + (j+1)
+                        bboxes.append([float(v) for v in datas[bbox_id].split()])
+                    dirname, filename = datas[filename_id].split('/')
+                    image_dirname = self.WIDER_FACE_IMAGE_LIST[mode]
+                    image_path = os.path.join(image_dirname,dirname,filename)
+                    self.NAME_DICT[mode][filename] = {"image":image_path,"BBOX":np.array(bboxes)}
+                    i = last_bbox_id + 1
 
 class LocalDatasetLoader:
     def __init__(self):
@@ -354,8 +449,8 @@ if __name__ == "__main__":
     
     cfg = Config.from_json(CONFIG_PATH)
 
-    dataloader = DatasetLoader_WIDER(cfg.WIDER_DATASET_PATH)
-    # loader = dataloader.create_generator(batch_size= 32, dsize= (640,360))
+    dataloader = DatasetLoader_CelebA(cfg.CELEBA_DATASET_PATH)
+    loader = dataloader.create_generator(batch_size= 32, dsize= (640,360), shuffle= False)
     
-    # images, clas = loader.__next__()
-    # print (images.shape, clas.shape)
+    images, bboxes, attrs, pts, align_pts = loader.__next__()
+    print (images.shape, bboxes.shape, attrs.shape, pts.shape, align_pts.shape)
